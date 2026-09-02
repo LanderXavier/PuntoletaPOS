@@ -1,0 +1,59 @@
+@import "tailwindcss";
+
+@theme {
+  /* Tipografía */
+  --font-display: "Manrope", ui-sans-serif, system-ui, sans-serif;
+  --font-body: "Inter", ui-sans-serif, system-ui, sans-serif;
+
+  /* Paleta — claros, con acentos azules. Nada de negro puro / dark mode. */
+  --color-canvas: #F4F7FC;        /* fondo general de la app */
+  --color-surface: #FFFFFF;       /* tarjetas, paneles, sidebar */
+  --color-surface-soft: #EDF2FC;  /* superficies suaves / hover */
+
+  --color-brand-50: #EEF3FE;
+  --color-brand-100: #DCE7FD;
+  --color-brand-400: #6B90F0;
+  --color-brand-500: #3760E8;     /* azul primario */
+  --color-brand-600: #2A4CCB;
+  --color-brand-700: #223CA0;
+
+  --color-accent-teal: #12A7A0;   /* acento secundario, cifras positivas */
+  --color-accent-amber: #E8A33D;  /* acento terciario, alertas suaves */
+
+  --color-ink-900: #1C2536;       /* texto principal (gris-azulado, no negro puro) */
+  --color-ink-600: #56637A;       /* texto secundario */
+  --color-ink-400: #8B96AB;       /* texto terciario / placeholder */
+
+  --color-line: #E3E9F5;          /* bordes */
+  --color-danger: #E0483F;
+  --color-danger-soft: #FCEAE9;
+  --color-success: #12A7A0;
+  --color-success-soft: #E5F6F5;
+}
+
+body {
+  font-family: var(--font-body);
+  background-color: var(--color-canvas);
+  color: var(--color-ink-900);
+  -webkit-font-smoothing: antialiased;
+}
+
+::selection {
+  background-color: var(--color-brand-100);
+}
+
+/* Scrollbar sutil, coherente con la paleta clara */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background-color: var(--color-line);
+  border-radius: 999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background-color: var(--color-brand-100);
+}

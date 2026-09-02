@@ -1,0 +1,25 @@
+{
+  "businessName": "Ferretería El Tornillo",
+  "legalName": "El Tornillo Cía. Ltda.",
+  "taxIdLabel": "RUC",
+  "taxId": "1792345678001",
+  "address": "Av. de los Shyris N34-120 y Portugal, Quito",
+  "phone": "+593 99 123 4567",
+  "email": "ventas@eltornillo.com",
+  "website": "www.eltornillo.com",
+  "logo": {
+    "src": "/logo-placeholder.svg",
+    "alt": "Logo Ferretería El Tornillo"
+  },
+  "currency": {
+    "code": "USD",
+    "symbol": "$"
+  },
+  "invoice": {
+    "documentTitle": "Factura",
+    "prefix": "FAC-",
+    "footerNote": "Gracias por su compra. Este documento no tiene validez tributaria — es un comprobante interno de venta.",
+    "showCustomerName": true,
+    "defaultCustomerName": "Cliente final"
+  }
+}
