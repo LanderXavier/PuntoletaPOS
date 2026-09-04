@@ -41,9 +41,23 @@ export default function App() {
   }
 
   function handleSaleCompleted(sale) {
-    setSales((prev) => [...prev, sale]);
+    setSales((prev) => [...prev, { id: newId(), ...sale }]);
     setCart([]);
     setCustomerName("");
+  }
+
+  // Identifica una venta por su id; las facturas guardadas antes de esta
+  // versión no tienen id, así que usamos el número de factura como respaldo.
+  function saleKey(s) {
+    return s.id ?? s.invoiceNumber;
+  }
+
+  function handleUpdateSale(key, updatedSale) {
+    setSales((prev) => prev.map((s) => (saleKey(s) === key ? { ...s, ...updatedSale } : s)));
+  }
+
+  function handleDeleteSale(key) {
+    setSales((prev) => prev.filter((s) => saleKey(s) !== key));
   }
 
   function handleUpdateSettings(nextSettings) {
@@ -83,7 +97,14 @@ export default function App() {
               onImportProducts={handleImportProducts}
             />
           )}
-          {activeView === "summary" && <DashboardView sales={sales} settings={settings} />}
+          {activeView === "summary" && (
+            <DashboardView
+              sales={sales}
+              settings={settings}
+              onUpdateSale={handleUpdateSale}
+              onDeleteSale={handleDeleteSale}
+            />
+          )}
           {activeView === "settings" && (
             <SettingsView
               settings={settings}

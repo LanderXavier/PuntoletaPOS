@@ -1,5 +1,5 @@
-import { useMemo, useState } from "react";
-import { Search, Plus, Trash2, Save, User, Loader2, X } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Search, Plus, Trash2, Save, User, Loader2, X, Check } from "lucide-react";
 import { formatCurrency } from "../../utils/formatCurrency";
 import { buildInvoiceDoc } from "../../utils/generateInvoicePdf";
 import { saveInvoicePdf } from "../../utils/pdfActions";
@@ -18,7 +18,18 @@ export default function SalesView({
   const [busyAction, setBusyAction] = useState(null); // 'save' | null
   const [actionError, setActionError] = useState("");
   const [confirmingClear, setConfirmingClear] = useState(false);
+  const [justAddedId, setJustAddedId] = useState(null); // resalta el ítem recién agregado en el carrito
+  const [justClickedId, setJustClickedId] = useState(null); // feedback en el botón "+" de la lista de búsqueda
+  const highlightTimeoutRef = useRef(null);
+  const clickTimeoutRef = useRef(null);
   const symbol = settings.currency?.symbol ?? "$";
+
+  useEffect(() => {
+    return () => {
+      clearTimeout(highlightTimeoutRef.current);
+      clearTimeout(clickTimeoutRef.current);
+    };
+  }, []);
 
   const filteredProducts = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -32,15 +43,25 @@ export default function SalesView({
   );
 
   function addToCart(product) {
+    // El producto agregado (nuevo o repetido) siempre pasa al inicio de
+    // la lista, así se ve de inmediato que se agregó sin tener que
+    // buscarlo entre los demás.
     onCartChange((prev) => {
       const existing = prev.find((item) => item.id === product.id);
       if (existing) {
-        return prev.map((item) =>
-          item.id === product.id ? { ...item, qty: item.qty + 1 } : item
-        );
+        const updated = { ...existing, qty: existing.qty + 1 };
+        return [updated, ...prev.filter((item) => item.id !== product.id)];
       }
-      return [...prev, { id: product.id, name: product.name, pvp: product.pvp, qty: 1 }];
+      return [{ id: product.id, name: product.name, pvp: product.pvp, qty: 1 }, ...prev];
     });
+
+    clearTimeout(highlightTimeoutRef.current);
+    setJustAddedId(product.id);
+    highlightTimeoutRef.current = setTimeout(() => setJustAddedId(null), 700);
+
+    clearTimeout(clickTimeoutRef.current);
+    setJustClickedId(product.id);
+    clickTimeoutRef.current = setTimeout(() => setJustClickedId(null), 500);
   }
 
   function updateQty(id, qty) {
@@ -70,7 +91,13 @@ export default function SalesView({
       );
       const result = await saveInvoicePdf(doc, `${invoiceNumber}.pdf`);
       if (result.saved) {
-        onSaleCompleted?.({ invoiceNumber, total: saleTotal, customerName: finalName, date: new Date().toISOString() });
+        onSaleCompleted?.({
+          invoiceNumber,
+          total: saleTotal,
+          customerName: finalName,
+          date: new Date().toISOString(),
+          items: cart,
+        });
       }
       // Si el usuario canceló el diálogo "Guardar como...", no pasa nada:
       // el carrito se mantiene intacto para que pueda intentar de nuevo.
@@ -105,27 +132,36 @@ export default function SalesView({
           </div>
 
           <ul className="mt-4 divide-y divide-line">
-            {filteredProducts.map((product) => (
-              <li key={product.id} className="flex items-center justify-between gap-3 py-3">
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-medium text-ink-900">{product.name}</p>
-                  <p className="text-xs text-ink-400">{product.category}</p>
-                </div>
-                <div className="flex items-center gap-3">
-                  <span className="text-sm font-semibold text-ink-900">
-                    {formatCurrency(product.pvp, symbol)}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => addToCart(product)}
-                    className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-50 text-brand-600 transition-colors hover:bg-brand-100"
-                    aria-label={`Agregar ${product.name}`}
-                  >
-                    <Plus size={16} strokeWidth={2.4} />
-                  </button>
-                </div>
-              </li>
-            ))}
+            {filteredProducts.map((product) => {
+              const justClicked = justClickedId === product.id;
+              return (
+                <li key={product.id} className="flex items-center justify-between gap-3 py-3">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-medium text-ink-900">{product.name}</p>
+                    <p className="text-xs text-ink-400">{product.category}</p>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <span className="text-sm font-semibold text-ink-900">
+                      {formatCurrency(product.pvp, symbol)}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => addToCart(product)}
+                      className={`flex h-8 w-8 items-center justify-center rounded-lg transition-colors ${
+                        justClicked
+                          ? "bg-success-soft text-success"
+                          : "bg-brand-50 text-brand-600 hover:bg-brand-100"
+                      }`}
+                      aria-label={`Agregar ${product.name}`}
+                    >
+                      <span className={justClicked ? "animate-add-pulse" : ""}>
+                        {justClicked ? <Check size={16} strokeWidth={2.6} /> : <Plus size={16} strokeWidth={2.4} />}
+                      </span>
+                    </button>
+                  </div>
+                </li>
+              );
+            })}
             {filteredProducts.length === 0 && (
               <li className="py-6 text-center text-sm text-ink-400">
                 No se encontraron productos para "{query}".
@@ -135,7 +171,7 @@ export default function SalesView({
         </section>
 
         {/* Venta actual */}
-        <section className="flex flex-col rounded-2xl border border-line bg-surface p-5">
+        <section className="flex max-h-[calc(100vh-140px)] flex-col rounded-2xl border border-line bg-surface p-5">
           <div className="flex items-center justify-between">
             <h2 className="font-display text-sm font-bold text-ink-900">Venta actual</h2>
             {cart.length > 0 &&
@@ -169,7 +205,7 @@ export default function SalesView({
               ))}
           </div>
 
-          <div className="mt-4">
+          <div className="mt-4 shrink-0">
             <label className="mb-1.5 block text-xs font-medium text-ink-600">Cliente</label>
             <div className="relative">
               <User size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-400" />
@@ -186,7 +222,16 @@ export default function SalesView({
             </p>
           </div>
 
-          <div className="mt-4 flex-1">
+          {/* Total: arriba de la lista, siempre visible */}
+          <div className="mt-4 flex shrink-0 items-center justify-between rounded-xl bg-brand-50 px-4 py-3">
+            <span className="text-sm font-medium text-brand-600">Total</span>
+            <span className="font-display text-xl font-bold text-brand-600">
+              {formatCurrency(total, symbol)}
+            </span>
+          </div>
+
+          {/* Lista de productos del carrito: scroll propio, no mueve el resto de la ventana */}
+          <div className="mt-4 min-h-[100px] flex-1 overflow-y-auto pr-1">
             {cart.length === 0 ? (
               <div className="flex h-40 flex-col items-center justify-center rounded-xl border border-dashed border-line text-center">
                 <p className="text-sm text-ink-400">Aún no has agregado productos.</p>
@@ -194,7 +239,12 @@ export default function SalesView({
             ) : (
               <ul className="divide-y divide-line">
                 {cart.map((item) => (
-                  <li key={item.id} className="flex items-center justify-between gap-2 py-3">
+                  <li
+                    key={item.id}
+                    className={`flex items-center justify-between gap-2 rounded-lg py-3 ${
+                      item.id === justAddedId ? "animate-cart-item-in" : ""
+                    }`}
+                  >
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-medium text-ink-900">{item.name}</p>
                       <p className="text-xs text-ink-400">{formatCurrency(item.pvp, symbol)} c/u</p>
@@ -223,21 +273,15 @@ export default function SalesView({
             )}
           </div>
 
-          <div className="mt-4 border-t border-line pt-4">
-            <div className="flex items-center justify-between">
-              <span className="text-sm font-medium text-ink-600">Total</span>
-              <span className="font-display text-xl font-bold text-brand-600">
-                {formatCurrency(total, symbol)}
-              </span>
-            </div>
+          <div className="mt-4 shrink-0 border-t border-line pt-4">
             {actionError && (
-              <p className="mt-3 text-xs font-medium text-danger">{actionError}</p>
+              <p className="mb-3 text-xs font-medium text-danger">{actionError}</p>
             )}
             <button
               type="button"
               onClick={handleSaveInvoice}
               disabled={cart.length === 0 || busyAction !== null}
-              className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-brand-500 py-3 text-sm font-semibold text-white transition-colors hover:bg-brand-600 disabled:cursor-not-allowed disabled:bg-brand-100 disabled:text-brand-400"
+              className="flex w-full items-center justify-center gap-2 rounded-xl bg-brand-500 py-3 text-sm font-semibold text-white transition-colors hover:bg-brand-600 disabled:cursor-not-allowed disabled:bg-brand-100 disabled:text-brand-400"
             >
               {busyAction === "save" ? <Loader2 size={17} className="animate-spin" /> : <Save size={17} />}
               Guardar factura
