@@ -1,0 +1,17 @@
+{
+  "productName": "Puntoleta POS - Papelería",
+  "identifier": "com.puntoleta.pos.papeleria",
+  "app": {
+    "windows": [
+      {
+        "title": "Puntoleta POS - Papelería",
+        "width": 1280,
+        "height": 800,
+        "minWidth": 1024,
+        "minHeight": 640,
+        "resizable": true,
+        "fullscreen": false
+      }
+    ]
+  }
+}

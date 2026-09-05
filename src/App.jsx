@@ -60,6 +60,16 @@ export default function App() {
     setSales((prev) => prev.filter((s) => saleKey(s) !== key));
   }
 
+  // Carga los productos y el cliente de una factura guardada en la venta
+  // en curso, para poder modificarla (agregar/quitar productos) desde
+  // "Hacer una venta". No borra ni toca la factura original — si el
+  // usuario guarda de nuevo, se crea una factura nueva.
+  function handleLoadSaleIntoCart(sale) {
+    setCart(sale.items ? sale.items.map((item) => ({ ...item })) : []);
+    setCustomerName(sale.customerName || "");
+    setActiveView("sale");
+  }
+
   function handleUpdateSettings(nextSettings) {
     setSettings(nextSettings);
   }
@@ -103,6 +113,7 @@ export default function App() {
               settings={settings}
               onUpdateSale={handleUpdateSale}
               onDeleteSale={handleDeleteSale}
+              onLoadSaleIntoCart={handleLoadSaleIntoCart}
             />
           )}
           {activeView === "settings" && (

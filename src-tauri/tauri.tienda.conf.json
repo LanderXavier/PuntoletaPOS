@@ -1,0 +1,17 @@
+{
+  "productName": "Puntoleta POS - Tienda Online",
+  "identifier": "com.puntoleta.pos.tienda",
+  "app": {
+    "windows": [
+      {
+        "title": "Puntoleta POS - Tienda Online",
+        "width": 1280,
+        "height": 800,
+        "minWidth": 1024,
+        "minHeight": 640,
+        "resizable": true,
+        "fullscreen": false
+      }
+    ]
+  }
+}

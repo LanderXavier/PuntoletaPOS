@@ -10,7 +10,7 @@ function saleKey(s) {
   return s.id ?? s.invoiceNumber;
 }
 
-export default function DashboardView({ sales, settings, onUpdateSale, onDeleteSale }) {
+export default function DashboardView({ sales, settings, onUpdateSale, onDeleteSale, onLoadSaleIntoCart }) {
   const symbol = settings.currency?.symbol ?? "$";
   const [selectedKey, setSelectedKey] = useState(null);
 
@@ -59,7 +59,7 @@ export default function DashboardView({ sales, settings, onUpdateSale, onDeleteS
       <div className="mt-6 overflow-hidden rounded-2xl border border-line bg-surface">
         <div className="border-b border-line px-5 py-4">
           <h2 className="font-display text-sm font-bold text-ink-900">Facturas del mes</h2>
-          <p className="mt-0.5 text-xs text-ink-400">Toca una factura para verla, editarla o eliminarla.</p>
+          <p className="mt-0.5 text-xs text-ink-400">Toca una factura para verla, editarla, eliminarla o cargarla en Ventas.</p>
         </div>
         <div className="max-h-[420px] overflow-y-auto">
           <table className="w-full text-left text-sm">
@@ -108,6 +108,10 @@ export default function DashboardView({ sales, settings, onUpdateSale, onDeleteS
           onSave={(updated) => onUpdateSale(saleKey(selectedSale), updated)}
           onDelete={() => {
             onDeleteSale(saleKey(selectedSale));
+            setSelectedKey(null);
+          }}
+          onLoadIntoSale={() => {
+            onLoadSaleIntoCart(selectedSale);
             setSelectedKey(null);
           }}
         />

@@ -10,7 +10,9 @@
     "preview": "vite preview",
     "tauri": "tauri",
     "desktop:dev": "tauri dev",
-    "desktop:build": "tauri build"
+    "desktop:build": "tauri build",
+    "desktop:build:papeleria": "tauri build --config src-tauri/tauri.papeleria.conf.json",
+    "desktop:build:tienda": "tauri build --config src-tauri/tauri.tienda.conf.json"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.11.1",
