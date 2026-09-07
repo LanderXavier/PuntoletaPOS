@@ -1,7 +1,8 @@
 import { useMemo, useRef, useState } from "react";
-import { Search, Trash2, Plus, FileSpreadsheet, Loader2 } from "lucide-react";
+import { Search, Trash2, Plus, FileSpreadsheet, Download, Loader2 } from "lucide-react";
 import { formatCurrency } from "../../utils/formatCurrency";
 import { parseProductsExcel } from "../../utils/parseProductsExcel";
+import { exportProductsToExcel } from "../../utils/exportProductsExcel";
 import PageHeader from "../layout/PageHeader";
 import ProductFormModal from "./ProductFormModal";
 
@@ -9,6 +10,7 @@ export default function ProductsView({ products, settings, onAddProduct, onDelet
   const [query, setQuery] = useState("");
   const [showForm, setShowForm] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
   const [importMessage, setImportMessage] = useState(null); // { type: 'ok'|'error', text }
   const fileInputRef = useRef(null);
   const symbol = settings.currency?.symbol ?? "$";
@@ -55,6 +57,24 @@ export default function ProductsView({ products, settings, onAddProduct, onDelet
     }
   }
 
+  async function handleExport() {
+    if (products.length === 0) return;
+    setIsExporting(true);
+    setImportMessage(null);
+    try {
+      const today = new Date().toISOString().slice(0, 10);
+      const result = await exportProductsToExcel(products, `productos-respaldo-${today}.xlsx`);
+      if (result.saved) {
+        setImportMessage({ type: "ok", text: "Respaldo del catálogo exportado correctamente." });
+      }
+      // Si el usuario canceló el diálogo, no pasa nada.
+    } catch (err) {
+      setImportMessage({ type: "error", text: "No se pudo exportar el catálogo. Intenta de nuevo." });
+    } finally {
+      setIsExporting(false);
+    }
+  }
+
   return (
     <div>
       <PageHeader
@@ -77,6 +97,16 @@ export default function ProductsView({ products, settings, onAddProduct, onDelet
             >
               {isImporting ? <Loader2 size={16} className="animate-spin" /> : <FileSpreadsheet size={16} />}
               Importar desde Excel
+            </button>
+            <button
+              type="button"
+              onClick={handleExport}
+              disabled={isExporting || products.length === 0}
+              className="flex items-center gap-2 rounded-xl border border-line bg-surface px-4 py-2.5 text-sm font-semibold text-ink-600 transition-colors hover:border-brand-400 hover:text-brand-600 disabled:opacity-60"
+              title="Descarga un respaldo del catálogo en Excel"
+            >
+              {isExporting ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />}
+              Exportar (respaldo)
             </button>
             <button
               type="button"

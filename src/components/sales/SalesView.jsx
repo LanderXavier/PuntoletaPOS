@@ -22,6 +22,7 @@ export default function SalesView({
   const [justClickedId, setJustClickedId] = useState(null); // feedback en el botón "+" de la lista de búsqueda
   const highlightTimeoutRef = useRef(null);
   const clickTimeoutRef = useRef(null);
+  const searchBoxRef = useRef(null);
   const symbol = settings.currency?.symbol ?? "$";
 
   useEffect(() => {
@@ -31,11 +32,24 @@ export default function SalesView({
     };
   }, []);
 
+  // Cierra el panel flotante de resultados si haces clic fuera de él.
+  useEffect(() => {
+    function handleClickOutside(e) {
+      if (searchBoxRef.current && !searchBoxRef.current.contains(e.target)) {
+        setQuery("");
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  // El panel de resultados solo existe mientras hay texto de búsqueda.
   const filteredProducts = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return products.slice(0, 6);
+    if (!q) return [];
     return products.filter((p) => p.name.toLowerCase().includes(q));
   }, [products, query]);
+  const isSearchOpen = query.trim().length > 0;
 
   const total = useMemo(
     () => cart.reduce((sum, item) => sum + item.pvp * item.qty, 0),
@@ -85,18 +99,26 @@ export default function SalesView({
     setBusyAction("save");
     try {
       const finalName = customerName.trim() || settings.invoice?.defaultCustomerName || "Cliente final";
+      // El carrito se muestra con lo último agregado arriba (para
+      // confirmar visualmente), pero en la factura impresa va en el
+      // orden en que se fueron agregando, así que se invierte solo
+      // para el PDF.
+      const itemsForInvoice = [...cart].reverse();
       const { doc, invoiceNumber, total: saleTotal } = await buildInvoiceDoc(
-        { items: cart, customerName: finalName },
+        { items: itemsForInvoice, customerName: finalName },
         settings
       );
-      const result = await saveInvoicePdf(doc, `${invoiceNumber}.pdf`);
+      // Quita caracteres no permitidos en nombres de archivo de Windows/Mac/Linux.
+      const safeCustomerName = finalName.replace(/[\\/:*?"<>|]/g, "").trim();
+      const suggestedName = safeCustomerName ? `${invoiceNumber} - ${safeCustomerName}.pdf` : `${invoiceNumber}.pdf`;
+      const result = await saveInvoicePdf(doc, suggestedName);
       if (result.saved) {
         onSaleCompleted?.({
           invoiceNumber,
           total: saleTotal,
           customerName: finalName,
           date: new Date().toISOString(),
-          items: cart,
+          items: itemsForInvoice,
         });
       }
       // Si el usuario canceló el diálogo "Guardar como...", no pasa nada:
@@ -117,95 +139,111 @@ export default function SalesView({
         subtitle="Busca productos, arma la venta actual y genera la factura. Si te falta un producto, puedes ir a agregarlo sin perder lo que llevas."
       />
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1.15fr_0.85fr]">
-        {/* Buscador y catálogo rápido */}
-        <section className="rounded-2xl border border-line bg-surface p-5">
-          <div className="relative">
-            <Search size={17} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-ink-400" />
-            <input
-              type="text"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Buscar producto por nombre..."
-              className="w-full rounded-xl border border-line bg-canvas py-2.5 pl-10 pr-3.5 text-sm text-ink-900 placeholder:text-ink-400 outline-none focus:border-brand-400 focus:ring-2 focus:ring-brand-100"
-            />
-          </div>
+      {/* Buscador: el panel de resultados flota encima, solo aparece
+          mientras hay texto escrito — no ocupa espacio fijo en pantalla. */}
+      <div ref={searchBoxRef} className="relative mb-6">
+        <div className="relative">
+          <Search size={17} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-ink-400" />
+          <input
+            type="text"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={(e) => e.key === "Escape" && setQuery("")}
+            placeholder="Buscar producto por nombre para agregarlo a la venta..."
+            className="w-full rounded-xl border border-line bg-surface py-3 pl-11 pr-11 text-sm text-ink-900 placeholder:text-ink-400 shadow-sm outline-none focus:border-brand-400 focus:ring-2 focus:ring-brand-100"
+          />
+          {isSearchOpen && (
+            <button
+              type="button"
+              onClick={() => setQuery("")}
+              className="absolute right-3 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-md text-ink-400 hover:bg-surface-soft hover:text-ink-900"
+              aria-label="Cerrar búsqueda"
+            >
+              <X size={15} />
+            </button>
+          )}
+        </div>
 
-          <ul className="mt-4 divide-y divide-line">
-            {filteredProducts.map((product) => {
-              const justClicked = justClickedId === product.id;
-              return (
-                <li key={product.id} className="flex items-center justify-between gap-3 py-3">
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-medium text-ink-900">{product.name}</p>
-                    <p className="text-xs text-ink-400">{product.category}</p>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <span className="text-sm font-semibold text-ink-900">
-                      {formatCurrency(product.pvp, symbol)}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => addToCart(product)}
-                      className={`flex h-8 w-8 items-center justify-center rounded-lg transition-colors ${
-                        justClicked
-                          ? "bg-success-soft text-success"
-                          : "bg-brand-50 text-brand-600 hover:bg-brand-100"
-                      }`}
-                      aria-label={`Agregar ${product.name}`}
-                    >
-                      <span className={justClicked ? "animate-add-pulse" : ""}>
-                        {justClicked ? <Check size={16} strokeWidth={2.6} /> : <Plus size={16} strokeWidth={2.4} />}
+        {isSearchOpen && (
+          <div className="absolute z-20 mt-2 max-h-80 w-full overflow-y-auto rounded-2xl border border-line bg-surface shadow-xl">
+            <ul className="divide-y divide-line">
+              {filteredProducts.map((product) => {
+                const justClicked = justClickedId === product.id;
+                return (
+                  <li key={product.id} className="flex items-center justify-between gap-3 px-4 py-3">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium text-ink-900">{product.name}</p>
+                      <p className="text-xs text-ink-400">{product.category}</p>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-3">
+                      <span className="text-sm font-semibold text-ink-900">
+                        {formatCurrency(product.pvp, symbol)}
                       </span>
-                    </button>
-                  </div>
+                      <button
+                        type="button"
+                        onClick={() => addToCart(product)}
+                        className={`flex h-8 w-8 items-center justify-center rounded-lg transition-colors ${
+                          justClicked
+                            ? "bg-success-soft text-success"
+                            : "bg-brand-50 text-brand-600 hover:bg-brand-100"
+                        }`}
+                        aria-label={`Agregar ${product.name}`}
+                      >
+                        <span className={justClicked ? "animate-add-pulse" : ""}>
+                          {justClicked ? <Check size={16} strokeWidth={2.6} /> : <Plus size={16} strokeWidth={2.4} />}
+                        </span>
+                      </button>
+                    </div>
+                  </li>
+                );
+              })}
+              {filteredProducts.length === 0 && (
+                <li className="px-4 py-6 text-center text-sm text-ink-400">
+                  No se encontraron productos para "{query}".
                 </li>
-              );
-            })}
-            {filteredProducts.length === 0 && (
-              <li className="py-6 text-center text-sm text-ink-400">
-                No se encontraron productos para "{query}".
-              </li>
-            )}
-          </ul>
-        </section>
+              )}
+            </ul>
+          </div>
+        )}
+      </div>
 
-        {/* Venta actual */}
-        <section className="flex max-h-[calc(100vh-140px)] flex-col rounded-2xl border border-line bg-surface p-5">
-          <div className="flex items-center justify-between">
-            <h2 className="font-display text-sm font-bold text-ink-900">Venta actual</h2>
-            {cart.length > 0 &&
-              (confirmingClear ? (
-                <div className="flex items-center gap-1.5 text-xs">
-                  <span className="text-ink-600">¿Vaciar todo?</span>
-                  <button
-                    type="button"
-                    onClick={handleClearCart}
-                    className="rounded-lg bg-danger-soft px-2 py-1 font-semibold text-danger hover:bg-danger hover:text-white"
-                  >
-                    Sí, vaciar
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setConfirmingClear(false)}
-                    className="rounded-lg px-2 py-1 text-ink-400 hover:bg-surface-soft"
-                  >
-                    Cancelar
-                  </button>
-                </div>
-              ) : (
+      {/* Venta actual: a todo el ancho, con scroll propio en la lista */}
+      <section className="flex min-h-[420px] max-h-[calc(100vh-260px)] flex-col rounded-2xl border border-line bg-surface p-5">
+        <div className="flex items-center justify-between">
+          <h2 className="font-display text-sm font-bold text-ink-900">Venta actual</h2>
+          {cart.length > 0 &&
+            (confirmingClear ? (
+              <div className="flex items-center gap-1.5 text-xs">
+                <span className="text-ink-600">¿Vaciar todo?</span>
                 <button
                   type="button"
-                  onClick={() => setConfirmingClear(true)}
-                  className="flex items-center gap-1 text-xs font-medium text-ink-400 hover:text-danger"
+                  onClick={handleClearCart}
+                  className="rounded-lg bg-danger-soft px-2 py-1 font-semibold text-danger hover:bg-danger hover:text-white"
                 >
-                  <X size={13} />
-                  Vaciar venta
+                  Sí, vaciar
                 </button>
-              ))}
-          </div>
+                <button
+                  type="button"
+                  onClick={() => setConfirmingClear(false)}
+                  className="rounded-lg px-2 py-1 text-ink-400 hover:bg-surface-soft"
+                >
+                  Cancelar
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setConfirmingClear(true)}
+                className="flex items-center gap-1 text-xs font-medium text-ink-400 hover:text-danger"
+              >
+                <X size={13} />
+                Vaciar venta
+              </button>
+            ))}
+        </div>
 
-          <div className="mt-4 shrink-0">
+        <div className="mt-4 grid shrink-0 grid-cols-1 gap-4 sm:grid-cols-[1fr_auto]">
+          <div>
             <label className="mb-1.5 block text-xs font-medium text-ink-600">Cliente</label>
             <div className="relative">
               <User size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-400" />
@@ -222,73 +260,73 @@ export default function SalesView({
             </p>
           </div>
 
-          {/* Total: arriba de la lista, siempre visible */}
-          <div className="mt-4 flex shrink-0 items-center justify-between rounded-xl bg-brand-50 px-4 py-3">
+          {/* Total: bien visible junto al cliente, no hay que buscarlo */}
+          <div className="flex items-center justify-between gap-6 rounded-xl bg-brand-50 px-5 py-3 sm:justify-start">
             <span className="text-sm font-medium text-brand-600">Total</span>
-            <span className="font-display text-xl font-bold text-brand-600">
+            <span className="font-display text-2xl font-bold text-brand-600">
               {formatCurrency(total, symbol)}
             </span>
           </div>
+        </div>
 
-          {/* Lista de productos del carrito: scroll propio, no mueve el resto de la ventana */}
-          <div className="mt-4 min-h-[100px] flex-1 overflow-y-auto pr-1">
-            {cart.length === 0 ? (
-              <div className="flex h-40 flex-col items-center justify-center rounded-xl border border-dashed border-line text-center">
-                <p className="text-sm text-ink-400">Aún no has agregado productos.</p>
-              </div>
-            ) : (
-              <ul className="divide-y divide-line">
-                {cart.map((item) => (
-                  <li
-                    key={item.id}
-                    className={`flex items-center justify-between gap-2 rounded-lg py-3 ${
-                      item.id === justAddedId ? "animate-cart-item-in" : ""
-                    }`}
+        {/* Lista de productos del carrito: scroll propio, no mueve el resto de la ventana */}
+        <div className="mt-4 min-h-[100px] flex-1 overflow-y-auto pr-1">
+          {cart.length === 0 ? (
+            <div className="flex h-40 flex-col items-center justify-center rounded-xl border border-dashed border-line text-center">
+              <p className="text-sm text-ink-400">Aún no has agregado productos. Usa el buscador de arriba.</p>
+            </div>
+          ) : (
+            <ul className="divide-y divide-line">
+              {cart.map((item) => (
+                <li
+                  key={item.id}
+                  className={`flex items-center justify-between gap-2 rounded-lg py-3 ${
+                    item.id === justAddedId ? "animate-cart-item-in" : ""
+                  }`}
+                >
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium text-ink-900">{item.name}</p>
+                    <p className="text-xs text-ink-400">{formatCurrency(item.pvp, symbol)} c/u</p>
+                  </div>
+                  <input
+                    type="number"
+                    min={1}
+                    value={item.qty}
+                    onChange={(e) => updateQty(item.id, Number(e.target.value))}
+                    className="w-14 rounded-lg border border-line bg-canvas py-1 text-center text-sm outline-none focus:border-brand-400 focus:ring-2 focus:ring-brand-100"
+                  />
+                  <span className="w-16 text-right text-sm font-semibold text-ink-900">
+                    {formatCurrency(item.pvp * item.qty, symbol)}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => removeFromCart(item.id)}
+                    className="flex h-8 w-8 items-center justify-center rounded-lg text-ink-400 transition-colors hover:bg-danger-soft hover:text-danger"
+                    aria-label={`Quitar ${item.name}`}
                   >
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium text-ink-900">{item.name}</p>
-                      <p className="text-xs text-ink-400">{formatCurrency(item.pvp, symbol)} c/u</p>
-                    </div>
-                    <input
-                      type="number"
-                      min={1}
-                      value={item.qty}
-                      onChange={(e) => updateQty(item.id, Number(e.target.value))}
-                      className="w-14 rounded-lg border border-line bg-canvas py-1 text-center text-sm outline-none focus:border-brand-400 focus:ring-2 focus:ring-brand-100"
-                    />
-                    <span className="w-16 text-right text-sm font-semibold text-ink-900">
-                      {formatCurrency(item.pvp * item.qty, symbol)}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => removeFromCart(item.id)}
-                      className="flex h-8 w-8 items-center justify-center rounded-lg text-ink-400 transition-colors hover:bg-danger-soft hover:text-danger"
-                      aria-label={`Quitar ${item.name}`}
-                    >
-                      <Trash2 size={16} />
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
+                    <Trash2 size={16} />
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
 
-          <div className="mt-4 shrink-0 border-t border-line pt-4">
-            {actionError && (
-              <p className="mb-3 text-xs font-medium text-danger">{actionError}</p>
-            )}
-            <button
-              type="button"
-              onClick={handleSaveInvoice}
-              disabled={cart.length === 0 || busyAction !== null}
-              className="flex w-full items-center justify-center gap-2 rounded-xl bg-brand-500 py-3 text-sm font-semibold text-white transition-colors hover:bg-brand-600 disabled:cursor-not-allowed disabled:bg-brand-100 disabled:text-brand-400"
-            >
-              {busyAction === "save" ? <Loader2 size={17} className="animate-spin" /> : <Save size={17} />}
-              Guardar factura
-            </button>
-          </div>
-        </section>
-      </div>
+        <div className="mt-4 shrink-0 border-t border-line pt-4">
+          {actionError && (
+            <p className="mb-3 text-xs font-medium text-danger">{actionError}</p>
+          )}
+          <button
+            type="button"
+            onClick={handleSaveInvoice}
+            disabled={cart.length === 0 || busyAction !== null}
+            className="flex w-full items-center justify-center gap-2 rounded-xl bg-brand-500 py-3 text-sm font-semibold text-white transition-colors hover:bg-brand-600 disabled:cursor-not-allowed disabled:bg-brand-100 disabled:text-brand-400"
+          >
+            {busyAction === "save" ? <Loader2 size={17} className="animate-spin" /> : <Save size={17} />}
+            Guardar factura
+          </button>
+        </div>
+      </section>
     </div>
   );
 }

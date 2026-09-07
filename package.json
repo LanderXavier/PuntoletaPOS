@@ -12,7 +12,8 @@
     "desktop:dev": "tauri dev",
     "desktop:build": "tauri build",
     "desktop:build:papeleria": "tauri build --config src-tauri/tauri.papeleria.conf.json",
-    "desktop:build:tienda": "tauri build --config src-tauri/tauri.tienda.conf.json"
+    "desktop:build:tienda": "tauri build --config src-tauri/tauri.tienda.conf.json",
+    "desktop:build:cargadores": "tauri build --config src-tauri/tauri.cargadores.conf.json"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.11.1",
